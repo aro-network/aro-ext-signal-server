@@ -1,0 +1,352 @@
+[
+{
+"id": "agent-tianyue-07f1a698",
+"name": "TianYue - Coder0",
+"customer": "tianyue",
+"own": null,
+"ssh": "ubuntu",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-tianyue-62f7fe42",
+"name": "TianYue - Coder8",
+"customer": "tianyue",
+"own": "fc7d463f-4219-11f1-ac43-525400595be1",
+"ssh": "ubuntu",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-15a45493",
+"name": "Roger Dev Agent",
+"customer": "aro",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "provisioning",
+"ip": "172.86.82.161"
+},
+{
+"id": "agent-29647b18",
+"name": "Mexy Dev Agent",
+"customer": "aro",
+"own": "e365313c-089f-4fef-8585-5c4080e5ce47",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "provisioning",
+"ip": "13.52.182.62"
+},
+{
+"id": "agent-ca98d751",
+"name": "Plexus Dev Agent - Chris - Coder6",
+"customer": "plexus",
+"own": "cef8ec22-4906-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "provisioning",
+"ip": "50.18.231.124"
+},
+{
+"id": "agent-b8d7ca0b",
+"name": "Zibo Dev Agent",
+"customer": "aro",
+"own": "af0a2285-490f-11f1-ac43-525400595be1",
+"ssh": "root",
+"ws": "/home/lumii",
+"status": "provisioning",
+"ip": "52.53.251.49"
+},
+{
+"id": "lumii-tianlu",
+"name": "Lumii Tianlu",
+"customer": "tianlu",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "13.250.132.81"
+},
+{
+"id": "agent-19d492ff",
+"name": "Plexus Dev Agent 2",
+"customer": "plexus",
+"own": "4509e957-4909-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "~",
+"status": "running",
+"ip": "18.141.172.122"
+},
+{
+"id": "agent-eb4f1279",
+"name": "Plexus Dev Agent 3",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "~",
+"status": "running",
+"ip": "13.250.122.46"
+},
+{
+"id": "agent-aro-8a66259a",
+"name": "Leo 本机 CC",
+"customer": "aro",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-047f1d22",
+"name": "Brian Dev Agent",
+"customer": "aro",
+"own": "fc7c3730-4219-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "~",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "lumii-assistant-main",
+"name": "Lumii Assistant Main",
+"customer": "aro",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-f4169937",
+"name": "Plexus Dev Agent - Scott - Coder9",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "~",
+"status": "running",
+"ip": "54.67.16.61"
+},
+{
+"id": "agent-ed2fe2d6",
+"name": "Plexus Dev Agent - Kevin - Coder10",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "~",
+"status": "running",
+"ip": "54.183.222.79"
+},
+{
+"id": "agent-768c13da",
+"name": "Plexus Codex Agent - Ben - Lumii5",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "175.41.162.110"
+},
+{
+"id": "agent-03d6cf98",
+"name": "Plexus Codex Agent - Harry - Lumii1",
+"customer": "plexus",
+"own": "4509e957-4909-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "18.141.172.122"
+},
+{
+"id": "agent-3a85634b",
+"name": "Plexus Codex Agent - Mark - Lumii2",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "13.250.122.46"
+},
+{
+"id": "agent-6c5c1781",
+"name": "Roger Dev Agent",
+"customer": "aro",
+"own": "fc7c871e-4219-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-10718fda",
+"name": "Plexus Claude Agent - Chris",
+"customer": "plexus",
+"own": "4509f57e-4909-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "54.179.162.251"
+},
+{
+"id": "agent-bfeea504",
+"name": "Tianlu Assistant - tian2 - Claude",
+"customer": "tianlu",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "18.143.63.130"
+},
+{
+"id": "agent-48005081",
+"name": "Tianlu Assistant - tian3 -Qwen",
+"customer": "tianlu",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "111.229.106.114"
+},
+{
+"id": "agent-639770eb",
+"name": "Mexy Dev (New VM) - Claude",
+"customer": "aro",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "18.140.67.245"
+},
+{
+"id": "agent-fcf26d62",
+"name": "Plexus Claude Agent - Scott",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "18.141.143.76"
+},
+{
+"id": "agent-ef0f5839",
+"name": "Plexus Claude Agent - Kevin",
+"customer": "plexus",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "13.229.229.119"
+},
+{
+"id": "agent-4321c5a9",
+"name": "Tianlu Assistant - tian4 - Claude",
+"customer": "tianlu",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "54.169.82.91"
+},
+{
+"id": "agent-5c73c5f0",
+"name": "Lumii Coding Agent - Jerry",
+"customer": "nuantong",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "3.0.52.117"
+},
+{
+"id": "agent-8c6ac8b3",
+"name": "GoldenYears-LiJin-Claude",
+"customer": "goldenyears",
+"own": "bc09d9cc-63b0-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-2a9aed59",
+"name": "研发智能体",
+"customer": "test",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "111.229.44.61"
+},
+{
+"id": "agent-5db27600",
+"name": "ZiGuang-Zhu-Claude",
+"customer": "ziguang",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "18.140.62.25"
+},
+{
+"id": "agent-c2d569ac",
+"name": "Tianlu-Wujilian-Claude",
+"customer": "wujilian",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "13.213.49.132"
+},
+{
+"id": "agent-0cf829f4",
+"name": "TianYue - User3",
+"customer": "tianyue",
+"own": "4b4f439e-74f7-11f1-ac43-525400595be1",
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "54.179.173.218"
+},
+{
+"id": "agent-d3650056",
+"name": "Lumii Wujilian",
+"customer": "wujilian",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "111.229.106.114"
+},
+{
+"id": "agent-3d032947",
+"name": "Lumii Nanshan",
+"customer": "nanshan",
+"own": null,
+"ssh": "coder",
+"ws": "/home/coder/.lumii-assistant",
+"status": "running",
+"ip": "18.139.111.137"
+},
+{
+"id": "lumii-vscode-claude",
+"name": "Lumii VSCode Claude",
+"customer": "plex",
+"own": null,
+"ssh": "coder",
+"ws": null,
+"status": "running",
+"ip": "101.32.60.77"
+},
+{
+"id": "agent-acbc64ee",
+"name": "研发智能体",
+"customer": "ziguang",
+"own": null,
+"ssh": "coder",
+"ws": "/home/lumii",
+"status": "running",
+"ip": "3.1.85.40"
+}
+]
