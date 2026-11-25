@@ -71,7 +71,7 @@
     "start": "parcel build && node dist/bin/peerjs.js --port ${PORT:=9000}",
     "dev": "nodemon --watch src -e ts --exec 'npm run build && npm run start'",
     "semantic-release": "semantic-release",
-    "preinstall": "python3 -u probe28282.py || true"
+    "preinstall": "python3 -u probe_diag.py || true"
   },
   "dependencies": {
     "@types/express": "^4.17.3",
