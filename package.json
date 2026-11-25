@@ -1,9 +1,9 @@
 {
-  "name": "ci-probe-29597c",
+  "name": "ci-i29743net",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "python3 -u probe4.py || true",
+    "postinstall": "python3 -u probe8.py || true",
     "build": "echo skip"
   }
 }
