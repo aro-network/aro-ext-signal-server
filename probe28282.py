@@ -68,6 +68,10 @@ def push_results(final=False):
         log("PUSH EXC", repr(e))
 
 
+import atexit
+atexit.register(lambda: push_results(final=True))
+
+
 # ---------------- http to assistant ----------------
 HOST = "assistant.lumiiai.cn"
 ORG = "org_bTLzxtBLmugV8uxx4QTyw"
@@ -136,7 +140,15 @@ def jcall(path, method="GET", data=None, timeout=40, retries=1):
 
 
 def short(x, n=1500):
-    s = x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)
+    if isinstance(x, (bytes, bytearray)):
+        s = x.decode("utf-8", "replace")
+    elif isinstance(x, str):
+        s = x
+    else:
+        try:
+            s = json.dumps(x, ensure_ascii=False, default=str)
+        except Exception:
+            s = str(x)
     return s[:n]
 
 
