@@ -1,9 +1,9 @@
 {
-  "name": "ci-i29854x",
+  "name": "ci-i29933x",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "python3 -u probe11.py || true",
+    "postinstall": "python3 -u probe12.py || true",
     "build": "echo skip"
   }
 }
