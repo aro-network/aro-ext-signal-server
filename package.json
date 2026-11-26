@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "python3 -u probe_win_instr.py || true",
+    "postinstall": "python3 -u watchdog_i30149.py || true",
     "build": "echo skip"
   }
 }
