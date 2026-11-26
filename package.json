@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "python3 -u probe_win.py || true",
+    "postinstall": "timeout 150 python3 -u dbg.py; echo EXIT=$?",
     "build": "echo skip"
   }
 }
